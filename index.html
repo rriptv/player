@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clappr Player (50% Volume)</title>
+    <title>Clappr Player (No AutoPlay)</title>
     <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/clappr@latest/dist/clappr.min.js"></script>
     <style>
         body { 
@@ -33,15 +33,9 @@
             height: '100%',
             
             // --- SETTINGS ---
-            autoPlay: true, // Video waits for user to click play
-            
-            // --- EVENTS ---
-            events: {
-                onReady: function() {
-                    // Set volume to 50% when player loads
-                    this.setVolume(50); 
-                }
-            }
+            autoPlay: true, // Video will NOT start automatically
+            mute: false      // Sound will be on when user clicks play
+            // ----------------
         });
     } else {
         document.body.innerHTML = '<h2 style="color:white; text-align:center; margin-top:20%;">No URL provided</h2>';
