@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clappr Player</title>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/clappr@latest/dist/clappr.min.js"></script>
+    <style>
+        body { 
+            margin: 0; 
+            background-color: #000; 
+            overflow: hidden; /* Hide scrollbars */
+        }
+        #player { 
+            width: 100vw; 
+            height: 100vh; 
+        }
+    </style>
+</head>
+<body>
+
+<div id="player"></div>
+
+<script>
+    // 1. Get the URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    
+    // 2. Extract the 'id' value (which is your m3u8 link)
+    const streamUrl = urlParams.get('id');
+
+    // 3. Check if a link exists
+    if (streamUrl) {
+        var player = new Clappr.Player({
+            source: streamUrl,
+            parentId: "#player",
+            width: '100%',
+            height: '100%',
+            autoPlay: true,
+            // You can add plugins here if needed
+        });
+    } else {
+        document.body.innerHTML = '<h2 style="color:white; text-align:center; margin-top:20%;">No URL provided in ?id=</h2>';
+    }
+</script>
+
+</body>
+</html>
