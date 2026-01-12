@@ -3,9 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal JW Player</title>
+    <title>JW Player Stream</title>
     
-    <script src="https://ssl.p.jwpcdn.com/player/v/8.26.0/jwplayer.js"></script>
+    <script type="text/javascript" src="https://fle-rvd0i9o8-moo.com/player/jw8_26/jwplayer.js?v=5.0.2"></script>
+    
+    <script>
+        // 2. Your License Key
+        jwplayer.key = 'eNFaXCjyURVoCCGiHp7HTQ3hDhE/AfL0g8VE1fRbL84=';
+    </script>
 
     <style>
         body { margin: 0; padding: 0; background-color: #000; overflow: hidden; }
@@ -17,31 +22,34 @@
 <div id="player"></div>
 
 <script>
-    // 1. Helper to get URL parameters
-    function getQueryParam(name) {
-        var urlParams = new URLSearchParams(window.location.search);
-        return urlParams.get(name);
+    // 3. Robust URL Parameter Extraction (Bypasses browser encoding issues)
+    var currentUrl = window.location.href;
+    var rawInput = "";
+    
+    if (currentUrl.indexOf("id=") > -1) {
+        // Grab everything strictly after "id="
+        rawInput = currentUrl.substring(currentUrl.indexOf("id=") + 3);
     }
 
-    var rawInput = getQueryParam('id');
     var streamUrl = "";
     var keyId = "";
     var key = "";
 
     if (rawInput) {
-        // --- LOGIC TO DETECT FORMAT ---
+        // --- DETECTION LOGIC ---
 
-        // FORMAT 2: contains "?|drmScheme=" (The long one)
+        // FORMAT 1: Complex Link (...?|drmScheme=clearkey&drmLicense=KID:KEY)
         if (rawInput.includes("?|drmScheme=")) {
-            var parts = rawInput.split("?|");
+            var parts = rawInput.split("?|drmScheme=");
             streamUrl = parts[0];
             
-            // Extract keys from drmLicense parameter
-            var paramsPart = parts[1]; // e.g., drmScheme=clearkey&drmLicense=kid:key
-            if (paramsPart.includes("drmLicense=")) {
-                var temp = paramsPart.split("drmLicense=")[1];
-                // Clean up if there are more parameters after (&)
-                var keyString = temp.split("&")[0]; 
+            // Parse the params part
+            var rest = parts[1]; // e.g., "clearkey&drmLicense=kid:key"
+            if (rest.indexOf("drmLicense=") > -1) {
+                var licenseVal = rest.split("drmLicense=")[1];
+                // Clean up any trailing '&' parameters
+                var keyString = licenseVal.split("&")[0];
+                
                 var keyParts = keyString.split(":");
                 if (keyParts.length === 2) {
                     keyId = keyParts[0];
@@ -49,52 +57,57 @@
                 }
             }
         } 
-        // FORMAT 1: contains just "|" (The short one)
+        // FORMAT 2: Simple Link (...|KID:KEY)
         else if (rawInput.includes("|")) {
             var parts = rawInput.split("|");
-            streamUrl = parts[0];
-            var keyString = parts[1]; // e.g., kid:key
+            // The key is usually the last part
+            var keyString = parts.pop();
+            // Rejoin the rest just in case the URL had pipes
+            streamUrl = parts.join("|"); 
             
             var keyParts = keyString.split(":");
             if (keyParts.length === 2) {
                 keyId = keyParts[0];
                 key = keyParts[1];
             }
-        }
-        // FALLBACK: Just a URL (No keys)
+        } 
+        // FALLBACK: Just URL
         else {
             streamUrl = rawInput;
         }
 
-        // --- SETUP JW PLAYER ---
+        // --- PLAYER CONFIG ---
         
-        // Define the playlist object
-        var playlistItem = {
-            file: streamUrl,
-            type: "dash",
-            // Only add DRM block if keys were found
-            drm: (keyId && key) ? {
-                clearkey: {
-                    "keyId": keyId,
-                    "key": key
-                }
-            } : undefined
-        };
+        var drmConfig = undefined;
+        
+        // Dynamically build the ClearKey object
+        if (keyId && key) {
+            var clearkeyObj = {};
+            clearkeyObj[keyId] = key; // Assigns keyId as property name, key as value
+            
+            drmConfig = {
+                clearkey: clearkeyObj
+            };
+        }
 
         jwplayer("player").setup({
-            // IMPORTANT: If you have a license key, uncomment the line below:
-            // key: "YOUR_LICENSE_KEY_HERE", 
-            playlist: [playlistItem],
+            playlist: [{
+                file: streamUrl,
+                type: "dash",
+                drm: drmConfig
+            }],
             width: "100%",
             height: "100%",
             autostart: true,
             mute: false,
             stretching: "exactfit",
-            cast: {}
+            // Add Cast support just in case
+            cast: {} 
         });
 
     } else {
-        document.body.innerHTML = '<h2 style="color:white;text-align:center;margin-top:20%">No Video ID Found</h2>';
+        // Error Message if no link provided
+        document.body.innerHTML = '<h3 style="color:white; font-family:sans-serif; text-align:center; margin-top:20%">Please add ?id=YOUR_LINK to the URL</h3>';
     }
 </script>
 
