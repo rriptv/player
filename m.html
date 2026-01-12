@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JW Player Stream</title>
+    <title>JW Player Auto-Parse</title>
     
     <script type="text/javascript" src="https://fle-rvd0i9o8-moo.com/player/jw8_26/jwplayer.js?v=5.0.2"></script>
     
@@ -22,12 +22,12 @@
 <div id="player"></div>
 
 <script>
-    // 3. Robust URL Parameter Extraction (Bypasses browser encoding issues)
+    // 3. Robust URL Extraction
     var currentUrl = window.location.href;
     var rawInput = "";
     
+    // Grab everything after "id="
     if (currentUrl.indexOf("id=") > -1) {
-        // Grab everything strictly after "id="
         rawInput = currentUrl.substring(currentUrl.indexOf("id=") + 3);
     }
 
@@ -36,60 +36,79 @@
     var key = "";
 
     if (rawInput) {
-        // --- DETECTION LOGIC ---
+        
+        // --- PARSING LOGIC START ---
 
-        // FORMAT 1: Complex Link (...?|drmScheme=clearkey&drmLicense=KID:KEY)
-        if (rawInput.includes("?|drmScheme=")) {
-            var parts = rawInput.split("?|drmScheme=");
-            streamUrl = parts[0];
+        // Check if the link contains the "drmLicense" parameter explicitly
+        if (rawInput.includes("drmLicense=")) {
             
-            // Parse the params part
-            var rest = parts[1]; // e.g., "clearkey&drmLicense=kid:key"
-            if (rest.indexOf("drmLicense=") > -1) {
-                var licenseVal = rest.split("drmLicense=")[1];
-                // Clean up any trailing '&' parameters
-                var keyString = licenseVal.split("&")[0];
-                
-                var keyParts = keyString.split(":");
-                if (keyParts.length === 2) {
-                    keyId = keyParts[0];
-                    key = keyParts[1];
+            // Split by "drmLicense=" to get the key part
+            var splitParts = rawInput.split("drmLicense=");
+            var keyPart = splitParts[1]; 
+            
+            // Clean up: stop at the next "&" if it exists, or take the whole string
+            var fullKeyString = keyPart.split("&")[0];
+            
+            // Extract the MPD link (Everything before the separator)
+            // We check for "|drmScheme" or "?|drmScheme" or just "|"
+            if (rawInput.includes("|drmScheme=")) {
+                streamUrl = rawInput.split("|drmScheme=")[0];
+            } else if (rawInput.includes("?|drmScheme=")) {
+                streamUrl = rawInput.split("?|drmScheme=")[0];
+            } else {
+                // Fallback: split by the first pipe if standard separators aren't found
+                streamUrl = splitParts[0]; 
+                // Clean up the trailing characters from the URL part (like "|drmScheme=" or just "|")
+                if(streamUrl.endsWith("|drmScheme=") || streamUrl.endsWith("?|drmScheme=")) {
+                   // This is handled above, but just in case
+                } else {
+                   // Remove any pipe at the end of the URL if it stuck
+                   streamUrl = streamUrl.split("|")[0];
                 }
             }
+
+            // Parse the Key ID and Key
+            var keyParts = fullKeyString.split(":");
+            if (keyParts.length === 2) {
+                keyId = keyParts[0];
+                key = keyParts[1];
+            }
+
         } 
-        // FORMAT 2: Simple Link (...|KID:KEY)
+        // Standard Format: Link|KeyID:Key (No drmScheme text)
         else if (rawInput.includes("|")) {
             var parts = rawInput.split("|");
-            // The key is usually the last part
-            var keyString = parts.pop();
-            // Rejoin the rest just in case the URL had pipes
-            streamUrl = parts.join("|"); 
+            var lastPart = parts.pop(); // Assume last part is key
+            streamUrl = parts.join("|");
             
-            var keyParts = keyString.split(":");
+            var keyParts = lastPart.split(":");
             if (keyParts.length === 2) {
                 keyId = keyParts[0];
                 key = keyParts[1];
             }
         } 
-        // FALLBACK: Just URL
+        // No Key found
         else {
             streamUrl = rawInput;
         }
 
-        // --- PLAYER CONFIG ---
-        
+        // --- PARSING LOGIC END ---
+
+        // Debugging (Optional: check console to see if it worked)
+        console.log("Stream:", streamUrl);
+        console.log("Key:", keyId, key);
+
+        // 4. DRM Configuration
         var drmConfig = undefined;
-        
-        // Dynamically build the ClearKey object
         if (keyId && key) {
             var clearkeyObj = {};
-            clearkeyObj[keyId] = key; // Assigns keyId as property name, key as value
-            
+            clearkeyObj[keyId] = key;
             drmConfig = {
                 clearkey: clearkeyObj
             };
         }
 
+        // 5. Setup Player
         jwplayer("player").setup({
             playlist: [{
                 file: streamUrl,
@@ -100,14 +119,11 @@
             height: "100%",
             autostart: true,
             mute: false,
-            stretching: "exactfit",
-            // Add Cast support just in case
-            cast: {} 
+            stretching: "exactfit"
         });
 
     } else {
-        // Error Message if no link provided
-        document.body.innerHTML = '<h3 style="color:white; font-family:sans-serif; text-align:center; margin-top:20%">Please add ?id=YOUR_LINK to the URL</h3>';
+        document.body.innerHTML = '<h3 style="color:white; text-align:center; margin-top:20%">No ID Parameter Found</h3>';
     }
 </script>
 
