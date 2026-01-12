@@ -3,28 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClearKey Player</title>
-    
+    <title>ClearKey Player Fixed</title>
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@4.3.5/dist/shaka-player.ui.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shaka-player@4.3.5/dist/controls.min.css">
     
     <style>
         body, html {
-            width: 100%;
-            height: 100vh;
-            background: #000;
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            background: #000; overflow: hidden;
         }
         .player-container {
-            width: 100%;
-            height: 100%;
+            width: 100%; height: 100%;
         }
-        #video {
-            width: 100%;
-            height: 100%;
-        }
+        #video { width: 100%; height: 100%; }
     </style>
 </head>
 <body>
@@ -35,70 +26,62 @@
 
     <script>
         async function init() {
-            // 1. Get the URL parameters
-            const urlParams = new URLSearchParams(window.location.search);
-            const idParam = urlParams.get('id');
-
-            let manifestUri = "";
-            let clearKeys = {};
-
-            if (idParam) {
-                // Split the ID parameter by the pipe symbol '|'
-                // Format: MPD_URL|drmScheme=clearkey&drmLicense=KID:KEY
-                const parts = idParam.split('|');
-                
-                // The first part is the MPD URL
-                manifestUri = parts[0];
-
-                // If there is a second part, parse it for keys
-                if (parts[1]) {
-                    const drmParams = new URLSearchParams(parts[1]);
-                    const drmLicense = drmParams.get('drmLicense'); // "kid:key"
-
-                    if (drmLicense) {
-                        const keyParts = drmLicense.split(':');
-                        if (keyParts.length === 2) {
-                            const keyId = keyParts[0];
-                            const key = keyParts[1];
-                            clearKeys[keyId] = key;
-                        }
-                    }
-                }
-            } else {
-                console.error("No 'id' parameter found in URL.");
-                return;
-            }
-
-            // 2. Initialize Shaka Player
             const video = document.getElementById('video');
             const ui = video['ui'];
             const controls = ui.getControls();
             const player = controls.getPlayer();
 
-            // Configure DRM
-            if (Object.keys(clearKeys).length > 0) {
-                player.configure({
-                    drm: {
-                        clearKeys: clearKeys
+            // 1. Grab parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            let idParam = urlParams.get('id'); // Get the main ID string
+            let licenseParam = urlParams.get('drmLicense'); // Try to get license if browser separated it
+
+            let manifestUri = "";
+            let clearKeys = {};
+
+            if (idParam) {
+                // CLEAN THE URL: Remove the pipe "|" and everything after it from the main URL
+                if (idParam.includes('|')) {
+                    const parts = idParam.split('|');
+                    manifestUri = parts[0]; // Keep only the MPD link
+
+                    // If browser didn't split it (e.g. if encoded), check the second part for params
+                    if (!licenseParam && parts[1]) {
+                        const subParams = new URLSearchParams(parts[1]);
+                        licenseParam = subParams.get('drmLicense');
                     }
-                });
+                } else {
+                    manifestUri = idParam;
+                }
+
+                // 2. Process the License Key (kid:key)
+                if (licenseParam) {
+                    const keyParts = licenseParam.split(':');
+                    if (keyParts.length === 2) {
+                        clearKeys[keyParts[0]] = keyParts[1];
+                        console.log("Key found:", keyParts[0]);
+                    }
+                }
             }
 
-            // Error listener
-            player.addEventListener('error', (event) => {
-                console.error('Error code', event.detail.code, 'object', event.detail);
-            });
+            // 3. Configure Player
+            if (Object.keys(clearKeys).length > 0) {
+                player.configure({
+                    drm: { clearKeys: clearKeys }
+                });
+            } else {
+                console.warn("No DRM keys found in URL.");
+            }
 
-            // 3. Load the video
+            // 4. Load Video
             try {
                 await player.load(manifestUri);
-                console.log('Video loaded successfully');
+                console.log('Video loaded');
             } catch (e) {
-                console.error('Could not load video', e);
+                console.error('Error loading video', e);
             }
         }
 
-        // Wait for Shaka UI to be loaded
         document.addEventListener('shaka-ui-loaded', init);
     </script>
 </body>
