@@ -2,11 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Clappr Player</title>
-    <script src="https://cdn.jsdelivr.net/npm/clappr@latest/dist/clappr.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/dash-shaka-playback@latest/dist/dash-shaka-playback.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal JW Player</title>
+    
+    <script src="https://ssl.p.jwpcdn.com/player/v/8.26.0/jwplayer.js"></script>
+
     <style>
-        body { margin: 0; background-color: #000; overflow: hidden; }
+        body { margin: 0; padding: 0; background-color: #000; overflow: hidden; }
         #player { width: 100%; height: 100vh; }
     </style>
 </head>
@@ -15,58 +17,84 @@
 <div id="player"></div>
 
 <script>
-    // 1. Get URL Parameter
-    function getParam(name) {
-        name = name.replace(/[\[\]]/g, '\\$&');
-        var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)'),
-            results = regex.exec(window.location.href);
-        if (!results) return null;
-        if (!results[2]) return '';
-        return decodeURIComponent(results[2].replace(/\+/g, ' '));
+    // 1. Helper to get URL parameters
+    function getQueryParam(name) {
+        var urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
     }
 
-    var rawInput = getParam('id');
+    var rawInput = getQueryParam('id');
+    var streamUrl = "";
+    var keyId = "";
+    var key = "";
 
     if (rawInput) {
-        // 2. Parse the Link (Split URL and Keys)
-        var parts = rawInput.split('?|');
-        var streamUrl = parts[0];
-        var drmInfo = parts[1] || "";
+        // --- LOGIC TO DETECT FORMAT ---
 
-        // 3. Extract Key ID and Key
-        var keyId = "";
-        var key = "";
-
-        if (drmInfo.includes("drmLicense=")) {
-            var temp = drmInfo.split("drmLicense=")[1];
-            var keyString = temp.split("&")[0]; // Clean up extra params
+        // FORMAT 2: contains "?|drmScheme=" (The long one)
+        if (rawInput.includes("?|drmScheme=")) {
+            var parts = rawInput.split("?|");
+            streamUrl = parts[0];
+            
+            // Extract keys from drmLicense parameter
+            var paramsPart = parts[1]; // e.g., drmScheme=clearkey&drmLicense=kid:key
+            if (paramsPart.includes("drmLicense=")) {
+                var temp = paramsPart.split("drmLicense=")[1];
+                // Clean up if there are more parameters after (&)
+                var keyString = temp.split("&")[0]; 
+                var keyParts = keyString.split(":");
+                if (keyParts.length === 2) {
+                    keyId = keyParts[0];
+                    key = keyParts[1];
+                }
+            }
+        } 
+        // FORMAT 1: contains just "|" (The short one)
+        else if (rawInput.includes("|")) {
+            var parts = rawInput.split("|");
+            streamUrl = parts[0];
+            var keyString = parts[1]; // e.g., kid:key
+            
             var keyParts = keyString.split(":");
             if (keyParts.length === 2) {
                 keyId = keyParts[0];
                 key = keyParts[1];
             }
         }
+        // FALLBACK: Just a URL (No keys)
+        else {
+            streamUrl = rawInput;
+        }
 
-        // 4. Configure Clappr with Shaka (ClearKey)
-        var player = new Clappr.Player({
-            source: streamUrl,
-            parentId: "#player",
-            plugins: [DashShakaPlayback], // Load Shaka plugin for DASH
-            width: '100%',
-            height: '100%',
-            autoPlay: true,
-            shakaConfiguration: {
-                drm: {
-                    clearKeys: {
-                        [keyId]: key 
-                    }
-                },
-                preferredAudioLanguage: 'en-US',
-            }
+        // --- SETUP JW PLAYER ---
+        
+        // Define the playlist object
+        var playlistItem = {
+            file: streamUrl,
+            type: "dash",
+            // Only add DRM block if keys were found
+            drm: (keyId && key) ? {
+                clearkey: {
+                    "keyId": keyId,
+                    "key": key
+                }
+            } : undefined
+        };
+
+        jwplayer("player").setup({
+            // IMPORTANT: If you have a license key, uncomment the line below:
+            // key: "YOUR_LICENSE_KEY_HERE", 
+            playlist: [playlistItem],
+            width: "100%",
+            height: "100%",
+            autostart: true,
+            mute: false,
+            stretching: "exactfit",
+            cast: {}
         });
 
     } else {
-        document.body.innerHTML = '<h3 style="color:white;text-align:center;margin-top:20%">No ID Parameter Found</h3>';
+        document.body.innerHTML = '<h2 style="color:white;text-align:center;margin-top:20%">No Video ID Found</h2>';
     }
 </script>
 
