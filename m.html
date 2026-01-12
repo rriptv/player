@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DASH ClearKey Player</title>
+    <title>ClearKey Player</title>
     
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@4.3.5/dist/shaka-player.ui.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shaka-player@4.3.5/dist/controls.min.css">
@@ -16,95 +16,57 @@
             margin: 0;
             padding: 0;
             overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
         }
-        
-        /* Container for the player to ensure it fills the screen */
         .player-container {
             width: 100%;
             height: 100%;
-            position: relative;
         }
-
         #video {
             width: 100%;
             height: 100%;
         }
-
-        /* Loading Spinner */
-        #loading {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 1000;
-            pointer-events: none; /* Let clicks pass through */
-        }
-        .spinner {
-            width: 80px;
-            height: 80px;
-            border: 8px solid rgba(255, 255, 255, 0.3);
-            border-top-color: #fff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        /* Hide loading when active class is removed */
-        #loading.hidden {
-            display: none;
-        }
     </style>
 </head>
 <body>
-
-    <div id="loading">
-        <div class="spinner"></div>
-    </div>
 
     <div class="player-container" data-shaka-player-container>
         <video data-shaka-player id="video" autoplay></video>
     </div>
 
     <script>
-        const manifestUri = "https://ottb.live.cf.ww.aiv-cdn.net/iad-nitro/live/clients/dash/enc/f60kqesunw/out/v1/a435ed7a00f947deb4369b46d8f2fb70/cenc.mpd";
-        // Default keys from your example (used if no URL param is provided)
-        let defaultKeyId = "1779c27b9d077a3ba0c9cc1bb9a94b9f";
-        let defaultKey = "cc5cf3b7928fb9e0a1ee6a8b566f0a8e";
-
         async function init() {
-            // 1. Parse URL Parameters
+            // 1. Get the URL parameters
             const urlParams = new URLSearchParams(window.location.search);
             const idParam = urlParams.get('id');
 
-            let finalManifest = manifestUri;
+            let manifestUri = "";
             let clearKeys = {};
 
             if (idParam) {
-                // Split the ID param: URL | Params
+                // Split the ID parameter by the pipe symbol '|'
+                // Format: MPD_URL|drmScheme=clearkey&drmLicense=KID:KEY
                 const parts = idParam.split('|');
-                finalManifest = parts[0];
+                
+                // The first part is the MPD URL
+                manifestUri = parts[0];
 
+                // If there is a second part, parse it for keys
                 if (parts[1]) {
-                    // Create a dummy URL to parse the parameters string easily
-                    const configParams = new URLSearchParams(parts[1]);
-                    const drmLicense = configParams.get('drmLicense');
+                    const drmParams = new URLSearchParams(parts[1]);
+                    const drmLicense = drmParams.get('drmLicense'); // "kid:key"
 
                     if (drmLicense) {
-                        // Format: key_id:key
                         const keyParts = drmLicense.split(':');
                         if (keyParts.length === 2) {
-                            clearKeys[keyParts[0]] = keyParts[1];
+                            const keyId = keyParts[0];
+                            const key = keyParts[1];
+                            clearKeys[keyId] = key;
                         }
                     }
                 }
             } else {
-                // Fallback to the default keys if no URL param is present
-                clearKeys[defaultKeyId] = defaultKey;
+                console.error("No 'id' parameter found in URL.");
+                return;
             }
 
             // 2. Initialize Shaka Player
@@ -112,49 +74,31 @@
             const ui = video['ui'];
             const controls = ui.getControls();
             const player = controls.getPlayer();
-            const loading = document.getElementById('loading');
 
-            // Configure Player
-            player.configure({
-                drm: {
-                    clearKeys: clearKeys
-                }
+            // Configure DRM
+            if (Object.keys(clearKeys).length > 0) {
+                player.configure({
+                    drm: {
+                        clearKeys: clearKeys
+                    }
+                });
+            }
+
+            // Error listener
+            player.addEventListener('error', (event) => {
+                console.error('Error code', event.detail.code, 'object', event.detail);
             });
 
-            // Listen for events
-            player.addEventListener('error', onErrorEvent);
-            
-            // Hide loading spinner when buffering stops
-            player.addEventListener('buffering', (event) => {
-                if (event.buffering) {
-                    loading.classList.remove('hidden');
-                } else {
-                    loading.classList.add('hidden');
-                }
-            });
-
-            // 3. Load the Manifest
+            // 3. Load the video
             try {
-                await player.load(finalManifest);
-                console.log('The video has now been loaded!');
-                loading.classList.add('hidden'); // Ensure spinner is hidden on success
+                await player.load(manifestUri);
+                console.log('Video loaded successfully');
             } catch (e) {
-                onError(e);
+                console.error('Could not load video', e);
             }
         }
 
-        function onErrorEvent(event) {
-            onError(event.detail);
-        }
-
-        function onError(error) {
-            console.error('Error code', error.code, 'object', error);
-            alert('Error loading video: ' + error.code);
-            document.getElementById('loading').classList.add('hidden');
-        }
-
-        document.addEventListener('DOMContentLoaded', init);
-        // Wait for Shaka UI to be ready
+        // Wait for Shaka UI to be loaded
         document.addEventListener('shaka-ui-loaded', init);
     </script>
 </body>
