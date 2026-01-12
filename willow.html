@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DASH ClearKey Player</title>
+    <title>Willow Player</title>
     
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@4.3.5/dist/shaka-player.ui.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/shaka-player@4.3.5/dist/controls.min.css">
@@ -21,7 +21,6 @@
             align-items: center;
         }
         
-        /* Container for the player to ensure it fills the screen */
         .player-container {
             width: 100%;
             height: 100%;
@@ -31,6 +30,7 @@
         #video {
             width: 100%;
             height: 100%;
+            object-fit: contain;
         }
 
         /* Loading Spinner */
@@ -40,7 +40,7 @@
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 1000;
-            pointer-events: none; /* Let clicks pass through */
+            pointer-events: none;
         }
         .spinner {
             width: 80px;
@@ -54,7 +54,6 @@
             to { transform: rotate(360deg); }
         }
         
-        /* Hide loading when active class is removed */
         #loading.hidden {
             display: none;
         }
@@ -71,61 +70,46 @@
     </div>
 
     <script>
-        const manifestUri = "https://otte.live.fly.ww.aiv-cdn.net/sin-nitro/live/clients/dash/enc/z5nb20gbbk/out/v1/dc3510b1e59343b8957acd44ef2ff0f8/cenc.mpd";
-        // Default keys from your example (used if no URL param is provided)
-        let defaultKeyId = "03695d107265c405f2a0c36fdc29a72f";
-        let defaultKey = "1b07673dce3f0b46f368b88a74ea79a9";
+        const manifestUri = 'https://otte.live.fly.ww.aiv-cdn.net/sin-nitro/live/clients/dash/enc/z5nb20gbbk/out/v1/dc3510b1e59343b8957acd44ef2ff0f8/cenc.mpd';
+        
+        // Key ID : Key
+        const clearKeysConfig = {
+            '03695d107265c405f2a0c36fdc29a72f': '1b07673dce3f0b46f368b88a74ea79a9'
+        };
 
-        async function init() {
-            // 1. Parse URL Parameters
-            const urlParams = new URLSearchParams(window.location.search);
-            const idParam = urlParams.get('id');
+        async function initApp() {
+            // Install built-in polyfills to patch browser incompatibilities.
+            shaka.Polyfill.installAll();
 
-            let finalManifest = manifestUri;
-            let clearKeys = {};
-
-            if (idParam) {
-                // Split the ID param: URL | Params
-                const parts = idParam.split('|');
-                finalManifest = parts[0];
-
-                if (parts[1]) {
-                    // Create a dummy URL to parse the parameters string easily
-                    const configParams = new URLSearchParams(parts[1]);
-                    const drmLicense = configParams.get('drmLicense');
-
-                    if (drmLicense) {
-                        // Format: key_id:key
-                        const keyParts = drmLicense.split(':');
-                        if (keyParts.length === 2) {
-                            clearKeys[keyParts[0]] = keyParts[1];
-                        }
-                    }
-                }
+            if (shaka.Player.isBrowserSupported()) {
+                initPlayer();
             } else {
-                // Fallback to the default keys if no URL param is present
-                clearKeys[defaultKeyId] = defaultKey;
+                console.error('Browser not supported!');
             }
+        }
 
-            // 2. Initialize Shaka Player
+        async function initPlayer() {
             const video = document.getElementById('video');
             const ui = video['ui'];
             const controls = ui.getControls();
             const player = controls.getPlayer();
-            const loading = document.getElementById('loading');
 
-            // Configure Player
+            // Configure the player with the ClearKey
             player.configure({
                 drm: {
-                    clearKeys: clearKeys
+                    clearKeys: clearKeysConfig
                 }
             });
 
-            // Listen for events
+            // Attach player to the window for debugging purposes
+            window.player = player;
+
+            // Listen for error events
             player.addEventListener('error', onErrorEvent);
             
-            // Hide loading spinner when buffering stops
+            // Listen for buffering to toggle spinner
             player.addEventListener('buffering', (event) => {
+                const loading = document.getElementById('loading');
                 if (event.buffering) {
                     loading.classList.remove('hidden');
                 } else {
@@ -133,29 +117,28 @@
                 }
             });
 
-            // 3. Load the Manifest
+            // Try to load a manifest
             try {
-                await player.load(finalManifest);
+                await player.load(manifestUri);
                 console.log('The video has now been loaded!');
-                loading.classList.add('hidden'); // Ensure spinner is hidden on success
+                // Hide loading spinner once loaded
+                document.getElementById('loading').classList.add('hidden');
             } catch (e) {
                 onError(e);
             }
         }
 
         function onErrorEvent(event) {
+            // Extract the shaka.util.Error object from the event.
             onError(event.detail);
         }
 
         function onError(error) {
             console.error('Error code', error.code, 'object', error);
-            alert('Error loading video: ' + error.code);
-            document.getElementById('loading').classList.add('hidden');
+            // Don't hide spinner if there is a fatal error, or maybe show an error message
         }
 
-        document.addEventListener('DOMContentLoaded', init);
-        // Wait for Shaka UI to be ready
-        document.addEventListener('shaka-ui-loaded', init);
+        document.addEventListener('DOMContentLoaded', initApp);
     </script>
 </body>
 </html>
