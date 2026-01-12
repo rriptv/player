@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="referrer" content="no-referrer">
+    <title>Plyr</title>
+    
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&amp;display=swap" rel="stylesheet">
+    
+    <style>
+        /* CSS remains the same as your original submission */
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; background-color: #000; overflow: hidden; width:100%;height: 100%; position: absolute ; }
+        .player-main { display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at center, #0a0a0a, #000); width: 100%; height: 100%; }
+        .plyr { width: 100%; height: 100%; }
+        
+        #myLogo { width:60px; height:40px; position: absolute; right: 5px; top: 10px; z-index: 3; }
+
+        .loading-overlay {
+            position: absolute; inset: 0; background: rgba(0, 0, 0, 0.9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 10; opacity: 1; transition: opacity 0.1s ease;
+        }
+        .loading-overlay.hidden { opacity: 0; pointer-events: none; }
+        
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+
+
+
+    <main class="player-main">
+        <div class="loading-overlay" id="loading-overlay">
+            
+            
+        </div>
+        
+        <div class="plyr"> 
+            <video id="player" autoplay="yes" oncanplay="this.muted=false" playsinline controls>
+                <source id="m3u8-url" src="" type="application/x-mpegURL">
+            </video>
+            
+            <img id="myLogo" src="https://blogger.googleusercontent.com/img/a/AVvXsEiQ92h-ekVYskxW9qCgLvpQVMpAs4tqUQXnH9nDi37JW5B95V7Cq2Rz_mlGO68vTZmA2H5Qp4p8B0I9EUlW-6W1aVOZgITWN3xyE65Hd6G5G_D6HJFxiuXJaK-wMfYD0PiiUR9EBodkzuPH0-ubAMJQK_3F3rpDMEIJKCxlEzNZucpRzsumlBFXWqinGOw=s885">
+        </div>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+
+    <script>
+        const playerElement = document.getElementById('player');
+        const loadingOverlay = document.getElementById('loading-overlay');
+
+        function displayError(message) {
+            loadingOverlay.innerHTML = `
+                <div style="color: white; text-align: center; padding: 20px; font-family: 'Inter', sans-serif;">
+                    <h2>Error</h2>
+                    <p>${message}</p>
+                </div>
+            `;
+            loadingOverlay.classList.remove('hidden');
+        }
+
+        const PLYR_CONFIG = {
+            autoplay: true,
+            hideControls: false, 
+            controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'settings', 'pip', 'airplay', 'fullscreen'],
+        };
+
+        function initPlayer() {
+            // *** CHANGE: Reads the 'url' parameter from the browser's address bar ***
+            const urlParams = new URLSearchParams(window.location.search);
+            const streamUrl = urlParams.get("url");
+
+            if (!streamUrl) {
+                displayError("Missing 'url' parameter in the address bar. Please append '?url=YOUR_M3U8_LINK' to play a stream.");
+                return;
+            }
+            // *************************************************************************
+            
+            try {
+                // Check if HLS is supported (for M3U8 playback)
+                if (streamUrl.includes('.m3u8') && Hls.isSupported()) {
+                    const hls = new Hls();
+                    hls.loadSource(streamUrl);
+                    hls.attachMedia(playerElement);
+                    
+                    hls.on(Hls.Events.MANIFEST_PARSED, function () {
+                        loadingOverlay.classList.add('hidden');
+                        
+                        const availableQualities = hls.levels.map((l) => l.height);
+                        const uniqueQualities = [...new Set(availableQualities)].sort((a, b) => b - a);
+
+                        new Plyr(playerElement, {
+                            ...PLYR_CONFIG,
+                            quality: {
+                                default: uniqueQualities[0] || 720,
+                                options: uniqueQualities,
+                                forced: true,
+                                onChange: (newQuality) => {
+                                    const levelIndex = hls.levels.findIndex((level) => level.height === newQuality);
+                                    if (levelIndex !== -1) {
+                                        hls.currentLevel = levelIndex;
+                                    }
+                                },
+                            },
+                        }).play().catch(e => console.warn("Autoplay was blocked.", e));
+                    });
+
+                    hls.on(Hls.Events.ERROR, function (event, data) {
+                        if (data.fatal) {
+                            console.error('HLS Fatal Error:', data.details);
+                            displayError("The stream encountered a fatal error. Details: " + data.details);
+                        }
+                    });
+
+                } else {
+                    // Fallback for non-HLS streams 
+                    loadingOverlay.classList.add('hidden');
+                    playerElement.src = streamUrl;
+                    new Plyr(playerElement, PLYR_CONFIG).play().catch(e => console.warn("Autoplay was blocked.", e));
+                }
+            } catch (error) {
+                console.error("Player initialization error:", error);
+                displayError("A player error occurred. Please try again.");
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', initPlayer);
+    </script>
+
+</body>   </html>
