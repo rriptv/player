@@ -1,0 +1,41 @@
+<meta name="viewport" content="width=device-width, initial-scale=1">      
+
+
+
+    
+    
+
+
+<iframe src id="iframe"  width="100%" height="100%" frameborder="0" webkitAllowFullScreen mozallowfullscreen allowfullscreen 
+autoplay; encrypted-media; gyroscope;" loading="lazy" allowfullscreen encrypted-media></iframe>
+
+        
+
+<script>
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const srcParam = urlParams.get('url');
+    
+    
+   if (srcParam) {
+      
+      document.getElementById('iframe').src = srcParam;
+      
+    } 
+  </script> 
+    
+   
+      
+    
+
+        
+
+    <style>
+
+body{width:100%;height:100%;margin:0} 
+
+iframe{width:100%;height:100%;overflow:hidden;background-color:#000;position: absolute;}
+
+
+
+       </style>
